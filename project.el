@@ -391,7 +391,9 @@ backend implementation of `project-external-roots'.")
                 submodules)))
          (setq files
                (apply #'nconc files sub-files)))
-       files))
+       ;; 'git ls-files' returns duplicate entries for merge conflicts.
+       ;; XXX: Better solutions welcome, but this seems cheap enough.
+       (delete-consecutive-dups files)))
     (`Hg
      (let ((default-directory (expand-file-name (file-name-as-directory dir)))
            args)
@@ -678,6 +680,18 @@ loop using the command \\[fileloop-continue]."
   (fileloop-initialize-replace
    from to (project-files (project-current t)) 'default)
   (fileloop-continue))
+
+;;;###autoload
+(defun project-compile ()
+  "Run `compile' in the project root."
+  (interactive)
+  (let* ((pr (project-current t))
+         (roots (project-roots pr))
+         ;; TODO: be more intelligent when choosing a directory. This
+         ;; currently isn't a priority, since no `project-roots'
+         ;; implementation returns more that one directory.
+         (default-directory (car roots)))
+    (call-interactively 'compile)))
 
 (provide 'project)
 ;;; project.el ends here
