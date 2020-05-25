@@ -1,7 +1,7 @@
 ;;; project.el --- Operations on the current project  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
-;; Version: 0.2.0
+;; Version: 0.3.0
 ;; Package-Requires: ((emacs "26.3"))
 
 ;; This is a GNU ELPA :core package.  Avoid using functionality that
@@ -24,6 +24,11 @@
 
 ;;; Commentary:
 
+;; NOTE: The project API is still experimental and can change in major,
+;; backward-incompatible ways.  Everyone is encouraged to try it, and
+;; report to us any problems or use cases we hadn't anticipated, by
+;; sending an email to emacs-devel, or `M-x report-emacs-bug'.
+;;
 ;; This file contains generic infrastructure for dealing with
 ;; projects, some utility functions, and commands using that
 ;; infrastructure.
@@ -31,11 +36,6 @@
 ;; The goal is to make it easier for Lisp programs to operate on the
 ;; current project, without having to know which package handles
 ;; detection of that project type, parsing its config files, etc.
-;;
-;; NOTE: The project API is still experimental and can change in major,
-;; backward-incompatible ways.  Everyone is encouraged to try it, and
-;; report to us any problems or use cases we hadn't anticipated, by
-;; sending an email to emacs-devel, or `M-x report-emacs-bug'.
 ;;
 ;; Infrastructure:
 ;;
