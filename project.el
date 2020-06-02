@@ -743,25 +743,20 @@ Arguments the same as in `compile'."
 (defvar project--list 'unset
   "List of known project directories.")
 
-(defun project--ensure-file-exists (filename)
-  "Create an empty file FILENAME if it doesn't exist."
-  (unless (file-exists-p filename)
-    (with-temp-buffer
-      (write-file filename))))
-
 (defun project--read-project-list ()
   "Initialize `project--list' from the project list file."
   (let ((filename (locate-user-emacs-file "project-list")))
-    (project--ensure-file-exists filename)
-    (with-temp-buffer
-      (insert-file-contents filename)
-      (let ((dirs (split-string (buffer-string) "\n" t))
-            (project-list '()))
-        (dolist (dir dirs)
-          (cl-pushnew (file-name-as-directory dir)
-                      project-list
-                      :test #'equal))
-        (setq project--list (reverse project-list))))))
+    (setq project--list
+          (when (file-exists-p filename)
+            (with-temp-buffer
+              (insert-file-contents filename)
+              (let ((dirs (split-string (buffer-string) "\n" t))
+                    (project-list '()))
+                (dolist (dir dirs)
+                  (cl-pushnew (file-name-as-directory dir)
+                              project-list
+                              :test #'equal))
+                (reverse project-list)))))))
 
 (defun project--ensure-read-project-list ()
   "Initialize `project--list' if it hasn't already been."
@@ -776,14 +771,15 @@ Arguments the same as in `compile'."
       (write-region nil nil filename nil 'silent))))
 
 (defun project--add-to-project-list-front (pr)
-  "Add project PR to the front of the project list and save it.
-Return PR."
+  "Add project PR to the front of the project list.
+Save the result to disk if the project list was changed."
   (project--ensure-read-project-list)
-  (let ((dir (project-root pr)))
+  (let* ((dir (project-root pr))
+         (do-write (not (equal (car project--list) dir))))
     (setq project--list (delete dir project--list))
-    (push dir project--list))
-  (project--write-project-list)
-  pr)
+    (push dir project--list)
+    (when do-write
+      (project--write-project-list))))
 
 (defun project--remove-from-project-list (pr-dir)
   "Remove directory PR-DIR from the project list.
