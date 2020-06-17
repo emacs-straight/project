@@ -1,7 +1,7 @@
 ;;; project.el --- Operations on the current project  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
-;; Version: 0.3.0
+;; Version: 0.4.0
 ;; Package-Requires: ((emacs "26.3"))
 
 ;; This is a GNU ELPA :core package.  Avoid using functionality that
@@ -644,6 +644,7 @@ PREDICATE, HIST, and DEFAULT have the same meaning as in
 (defun project-find-file-in (filename dirs project)
   "Complete FILENAME in DIRS in PROJECT and visit the result."
   (let* ((all-files (project-files project dirs))
+         (completion-ignore-case read-file-name-completion-ignore-case)
          (file (funcall project-read-file-name-function
                        "Find file" all-files nil nil
                        filename)))
@@ -820,10 +821,9 @@ It's also possible to enter an arbitrary directory."
 ;;;###autoload
 (defvar project-switch-commands
   '((?f "Find file" project-find-file)
-    (?r "Find regexp" project-find-regexp)
+    (?g "Find regexp" project-find-regexp)
     (?d "Dired" project-dired)
     (?v "VC-Dir" project-vc-dir)
-    (?s "Shell" project-shell)
     (?e "Eshell" project-eshell))
   "Alist mapping keys to project switching menu entries.
 Used by `project-switch-project' to construct a dispatch menu of
