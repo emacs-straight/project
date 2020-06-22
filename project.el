@@ -810,7 +810,8 @@ is inside the directory hierarchy of the project's root."
          (predicate
           (lambda (buffer)
             ;; BUFFER is an entry (BUF-NAME . BUF-OBJ) of Vbuffer_alist.
-            (and (not (eq (cdr buffer) current-buffer))
+            (and (cdr buffer)
+                 (not (eq (cdr buffer) current-buffer))
                  (when-let ((file (buffer-local-value 'default-directory
                                                       (cdr buffer))))
                    (file-in-directory-p file root))))))
@@ -819,7 +820,7 @@ is inside the directory hierarchy of the project's root."
       "Switch to buffer: "
       (when (funcall predicate (cons other-name other-buffer))
         other-name)
-      t
+      nil
       predicate))))
 
 (defcustom project-kill-buffers-skip-conditions
