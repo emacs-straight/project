@@ -823,7 +823,7 @@ is inside the directory hierarchy of the project's root."
       nil
       predicate))))
 
-(defcustom project-kill-buffers-skip-conditions
+(defcustom project-kill-buffers-ignores
   '("\\*Help\\*")
   "Conditions for buffers `project-kill-buffers' should not kill.
 Each condition is either a regular expression matching a buffer
@@ -831,7 +831,8 @@ name, or a predicate function that takes a buffer object as
 argument and returns non-nil if it matches.  Buffers that match
 any of the conditions will not be killed."
   :type '(repeat (choice regexp function))
-  :version "28.1")
+  :version "28.1"
+  :package-version '(project . "0.5.0"))
 
 (defun project--buffer-list (pr)
   "Return the list of all buffers in project PR."
@@ -847,7 +848,7 @@ any of the conditions will not be killed."
 ;;;###autoload
 (defun project-kill-buffers ()
   "Kill all live buffers belonging to the current project.
-Certain buffers may be \"spared\", see `project-kill-buffers-skip-conditions'."
+Certain buffers may be \"spared\", see `project-kill-buffers-ignores'."
   (interactive)
   (let ((pr (project-current t)) bufs)
     (dolist (buf (project--buffer-list pr))
@@ -857,7 +858,7 @@ Certain buffers may be \"spared\", see `project-kill-buffers-skip-conditions'."
                         (string-match-p c (buffer-name buf)))
                        ((functionp c)
                         (funcall c buf))))
-               project-kill-buffers-skip-conditions)
+               project-kill-buffers-ignores)
         (push buf bufs)))
     (when (yes-or-no-p (format "Kill %d buffers in %s? "
                                (length bufs) (project-root pr)))
@@ -873,7 +874,8 @@ Certain buffers may be \"spared\", see `project-kill-buffers-skip-conditions'."
   :group 'project)
 
 (defvar project--list 'unset
-  "List of known project directories.")
+  "List structure containing root directories of known projects.
+With some possible metadata (to be decided).")
 
 (defun project--read-project-list ()
   "Initialize `project--list' using contents of `project-list-file'."
@@ -882,7 +884,14 @@ Certain buffers may be \"spared\", see `project-kill-buffers-skip-conditions'."
           (when (file-exists-p filename)
             (with-temp-buffer
               (insert-file-contents filename)
-              (read (current-buffer)))))))
+              (read (current-buffer)))))
+    (unless (seq-every-p
+             (lambda (elt) (and (listp elt)
+                           (stringp (car elt))))
+             project--list)
+      (warn "Contents of %s are in wrong format, resetting"
+            project-list-file)
+      (setq project--list nil))))
 
 (defun project--ensure-read-project-list ()
   "Initialize `project--list' if it isn't already initialized."
@@ -936,10 +945,10 @@ It's also possible to enter an arbitrary directory not in the list."
       pr-dir)))
 
 ;;;###autoload
-(defun project-known-roots ()
-  "Return a list of known project roots."
+(defun project-known-project-roots ()
+  "Return the list of root directories of all known projects."
   (project--ensure-read-project-list)
-  project--list)
+  (mapcar #'car project--list))
 
 
 ;;; Project switching
