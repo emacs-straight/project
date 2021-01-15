@@ -1,6 +1,6 @@
 ;;; project.el --- Operations on the current project  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
 ;; Version: 0.5.3
 ;; Package-Requires: ((emacs "26.3") (xref "1.0.2"))
 
@@ -291,7 +291,8 @@ to find the list of ignores for each directory."
          (localdir (file-local-name (expand-file-name dir)))
          (command (format "%s %s %s -type f %s -print0"
                           find-program
-                          localdir
+                          ;; In case DIR is a symlink.
+                          (file-name-as-directory localdir)
                           (xref--find-ignores-arguments ignores localdir)
                           (if files
                               (concat (shell-quote-argument "(")
@@ -631,6 +632,7 @@ DIRS must contain directory names."
     (define-key map "g" 'project-find-regexp)
     (define-key map "G" 'project-or-external-find-regexp)
     (define-key map "r" 'project-query-replace-regexp)
+    (define-key map "x" 'project-execute-extended-command)
     map)
   "Keymap for project commands.")
 
@@ -1245,6 +1247,14 @@ It's also possible to enter an arbitrary directory not in the list."
   "Return the list of root directories of all known projects."
   (project--ensure-read-project-list)
   (mapcar #'car project--list))
+
+;;;###autoload
+(defun project-execute-extended-command ()
+  "Execute an extended command in project root."
+  (declare (interactive-only command-execute))
+  (interactive)
+  (let ((default-directory (project-root (project-current t))))
+    (call-interactively #'execute-extended-command)))
 
 
 ;;; Project switching
