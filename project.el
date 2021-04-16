@@ -296,12 +296,11 @@ to find the list of ignores for each directory."
          ;; Make sure ~/ etc. in local directory name is
          ;; expanded and not left for the shell command
          ;; to interpret.
-         (localdir (file-local-name (expand-file-name dir)))
+         (localdir (file-name-unquote (file-local-name (expand-file-name dir))))
          (command (format "%s %s %s -type f %s -print0"
                           find-program
                           ;; In case DIR is a symlink.
-                          (file-name-unquote
-                           (file-name-as-directory localdir))
+                          (file-name-as-directory localdir)
                           (xref--find-ignores-arguments ignores localdir)
                           (if files
                               (concat (shell-quote-argument "(")
@@ -312,9 +311,15 @@ to find the list of ignores for each directory."
                                        (concat " -o " find-name-arg " "))
                                       " "
                                       (shell-quote-argument ")"))
-                            ""))))
+                            "")))
+         (output (with-output-to-string
+                   (with-current-buffer standard-output
+                     (let ((status
+                            (process-file-shell-command command nil t)))
+                       (unless (zerop status)
+                         (error "File listing failed: %s" (buffer-string))))))))
     (project--remote-file-names
-     (sort (split-string (shell-command-to-string command) "\0" t)
+     (sort (split-string output "\0" t)
            #'string<))))
 
 (defun project--remote-file-names (local-files)
