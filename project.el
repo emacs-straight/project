@@ -808,8 +808,9 @@ DIRS must contain directory names."
   (with-temp-buffer
     (setq default-directory dir)
     (let ((enable-local-variables :all))
-      (hack-dir-local-variables-non-file-buffer))
-    (symbol-value var)))
+      (hack-dir-local-variables))
+    ;; Don't use `hack-local-variables-apply' to avoid setting modes.
+    (alist-get var file-local-variables-alist)))
 
 (cl-defmethod project-buffers ((project (head vc)))
   (let* ((root (expand-file-name (file-name-as-directory (project-root project))))
@@ -2140,12 +2141,10 @@ is part of the default mode line beginning with Emacs 30."
   :group 'project
   :version "30.1")
 
-(defvar project-menu-entry
-  `(menu-item "Project" ,(bound-and-true-p menu-bar-project-menu)))
-
 (defvar project-mode-line-map
   (let ((map (make-sparse-keymap)))
-    (define-key map [mode-line down-mouse-1] project-menu-entry)
+    (define-key map [mode-line down-mouse-1]
+                (bound-and-true-p menu-bar-project-item))
     map))
 
 (defvar project-mode-line-face nil
