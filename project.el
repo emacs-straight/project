@@ -1146,9 +1146,9 @@ for VCS directories listed in `vc-directory-exclusion-list'."
 (defcustom project-read-file-name-function #'project--read-file-cpd-relative
   "Function to call to read a file name from a list.
 For the arguments list, see `project--read-file-cpd-relative'."
-  :type '(choice (const :tag "Read with completion from relative names"
+  :type '(choice (const :tag "Read with completion from relative file names"
                         project--read-file-cpd-relative)
-                 (const :tag "Read with completion from absolute names"
+                 (const :tag "Read with completion from file names"
                         project--read-file-absolute)
                  (function :tag "Custom function" nil))
   :group 'project
@@ -1198,53 +1198,34 @@ by the user at will."
                           (file-name-absolute-p (car all-files)))
                      prompt
                    (concat prompt (format " in %s" common-parent-directory))))
-         (included-cpd (when (member common-parent-directory all-files)
-                         (setq all-files
-                               (delete common-parent-directory all-files))
-                         t))
-         (mb-default (mapcar (lambda (mb-default)
-                               (if (and common-parent-directory
-                                        mb-default
-                                        (file-name-absolute-p mb-default))
-                                   (file-relative-name
-                                    mb-default common-parent-directory)
-                                 mb-default))
-                             (if (listp mb-default) mb-default (list mb-default))))
          (substrings (mapcar (lambda (s) (substring s cpd-length)) all-files))
-         (_ (when included-cpd
-              (setq substrings (cons "./" substrings))))
          (new-collection (project--file-completion-table substrings))
-         (abs-cpd (expand-file-name common-parent-directory))
-         (abs-cpd-length (length abs-cpd))
-         (relname (cl-letf* ((non-essential t) ;Avoid new Tramp connections.
-                             ((symbol-value hist)
-                              (mapcan
-                               (lambda (s)
-                                 (setq s (expand-file-name s))
-                                 (and (string-prefix-p abs-cpd s)
-                                      (not (eq abs-cpd-length (length s)))
-                                      (list (substring s abs-cpd-length))))
-                               (symbol-value hist))))
-                    (project--completing-read-strict prompt
-                                                     new-collection
-                                                     predicate
-                                                     hist mb-default)))
+         (relname (project--completing-read-strict prompt
+                                                   new-collection
+                                                   predicate
+                                                   hist mb-default
+                                                   (unless (equal common-parent-directory "")
+                                                     common-parent-directory)))
          (absname (expand-file-name relname common-parent-directory)))
     absname))
 
 (defun project--read-file-absolute (prompt
                                     all-files &optional predicate
                                     hist mb-default)
-  (let* ((new-prompt (if (file-name-absolute-p (car all-files))
+  (let* ((names-absolute (file-name-absolute-p (car all-files)))
+         (new-prompt (if names-absolute
                          prompt
                        (concat prompt " in " default-directory)))
-         ;; FIXME: Map relative names to absolute?
+         ;; TODO: The names are intentionally not absolute in many cases.
+         ;; Probably better to rename this function.
          (ct (project--file-completion-table all-files))
          (file
           (project--completing-read-strict new-prompt
                                            ct
                                            predicate
-                                           hist mb-default)))
+                                           hist mb-default
+                                           (unless names-absolute
+                                             default-directory))))
     (unless (file-name-absolute-p file)
       (setq file (expand-file-name file)))
     file))
@@ -1303,17 +1284,39 @@ directories listed in `vc-directory-exclusion-list'."
 
 (defun project--completing-read-strict (prompt
                                         collection &optional predicate
-                                        hist mb-default)
-  (minibuffer-with-setup-hook
-      (lambda ()
-        (setq-local minibuffer-default-add-function
-                    (lambda ()
-                      (let ((minibuffer-default mb-default))
-                        (minibuffer-default-add-completions)))))
-    (completing-read (format "%s: " prompt)
-                     collection predicate 'confirm
-                     nil
-                     hist)))
+                                        hist mb-default
+                                        common-parent-directory)
+  (cl-letf* ((mb-default (mapcar (lambda (mb-default)
+                                   (if (and common-parent-directory
+                                            mb-default
+                                            (file-name-absolute-p mb-default))
+                                       (file-relative-name
+                                        mb-default common-parent-directory)
+                                     mb-default))
+                                 (if (listp mb-default) mb-default (list mb-default))))
+             (abs-cpd (expand-file-name (or common-parent-directory "")))
+             (abs-cpd-length (length abs-cpd))
+             (non-essential t)          ;Avoid new Tramp connections.
+             ((symbol-value hist)
+              (if common-parent-directory
+                  (mapcan
+                   (lambda (s)
+                     (setq s (expand-file-name s))
+                     (and (string-prefix-p abs-cpd s)
+                          (not (eq abs-cpd-length (length s)))
+                          (list (substring s abs-cpd-length))))
+                   (symbol-value hist))
+                (symbol-value hist))))
+    (minibuffer-with-setup-hook
+        (lambda ()
+          (setq-local minibuffer-default-add-function
+                      (lambda ()
+                        (let ((minibuffer-default mb-default))
+                          (minibuffer-default-add-completions)))))
+      (completing-read (format "%s: " prompt)
+                       collection predicate 'confirm
+                       nil
+                       hist))))
 
 ;;;###autoload
 (defun project-find-dir ()
@@ -1323,6 +1326,7 @@ The current buffer's `default-directory' is available as part of
 \"future history\"."
   (interactive)
   (let* ((project (project-current t))
+         (project-files-relative-names t)
          (all-files (project-files project))
          (completion-ignore-case read-file-name-completion-ignore-case)
          ;; FIXME: This misses directories without any files directly
@@ -1330,11 +1334,15 @@ The current buffer's `default-directory' is available as part of
          ;; `project-files-filtered', and see
          ;; https://stackoverflow.com/a/50685235/615245 for possible
          ;; implementation.
-         (all-dirs (mapcar #'file-name-directory all-files))
+         (all-dirs (cons "./"
+                         (delq nil
+                               ;; Some completion UIs show duplicates.
+                               (delete-dups
+                                (mapcar #'file-name-directory all-files)))))
+         (default-directory (project-root project))
          (dir (project--read-file-name
                project "Dired"
-               ;; Some completion UIs show duplicates.
-               (delete-dups all-dirs)
+               all-dirs
                nil 'file-name-history
                (and default-directory
                     (project--find-default-from default-directory project)))))
