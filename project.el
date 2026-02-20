@@ -463,9 +463,9 @@ the buffer's value of `default-directory'."
   (let ((root (expand-file-name (file-name-as-directory (project-root project))))
         bufs)
     (dolist (buf (buffer-list))
-      (when (string-prefix-p root (expand-file-name
-                                   (buffer-local-value 'default-directory buf)))
-        (push buf bufs)))
+      (let ((dir (buffer-local-value 'default-directory buf)))
+        (when (and dir (string-prefix-p root (expand-file-name dir)))
+          (push buf bufs))))
     (nreverse bufs)))
 
 (defgroup project-vc nil
@@ -698,6 +698,7 @@ in the `project-current' call, the timeout is determined by
            vc-handled-backends))
          project)
     (while (and
+            root
             (eq backend 'Git)
             (project--vc-merge-submodules-p root)
             (project--submodule-p root))
@@ -906,7 +907,7 @@ in the `project-current' call, the timeout is determined by
                        (project--value-in-dir 'project-vc-ignores dir)))
 
 (defun project--vc-ignores (dir backend extra-ignores)
-  (require 'vc)
+  (require 'vc)             ; Can be removed when we require Emacs 31.1.
   (append
    (when backend
      (delq
@@ -2497,15 +2498,17 @@ Return the number of detected projects."
   "Helper function used by `project-forget-zombie-projects'.
 PREDICATE can be a function with 1 argument which determines which
 projects should be deleted."
-  (dolist (proj (project-known-project-roots))
-    (when (and (funcall (or predicate #'identity) proj)
-               (condition-case-unless-debug nil
-                   (not (file-exists-p proj))
-                 (file-error
-                  (yes-or-no-p
-                   (format "Forget unreachable project `%s'? "
-                           proj)))))
-      (project-forget-project proj))))
+  (defvar tramp-error-show-message-timeout)
+  (let (tramp-error-show-message-timeout)
+    (dolist (proj (project-known-project-roots))
+      (when (and (funcall (or predicate #'identity) proj)
+                 (condition-case-unless-debug nil
+                     (not (file-exists-p proj))
+                   (file-error
+                    (yes-or-no-p
+                     (format "Forget unreachable project `%s'? "
+                             proj)))))
+        (project-forget-project proj)))))
 
 (defun project-forget-zombie-projects (&optional interactive)
   "Forget all known projects that don't exist any more."
